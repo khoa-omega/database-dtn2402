@@ -1,6 +1,6 @@
-DROP DATABASE IF EXISTS assignment_04;
-CREATE DATABASE assignment_04;
-USE assignment_04;
+DROP DATABASE IF EXISTS assignment_06;
+CREATE DATABASE assignment_06;
+USE assignment_06;
 
 -- Tạo bảng department
 DROP TABLE IF EXISTS department;
@@ -19,15 +19,19 @@ CREATE TABLE position (
 -- Tạo bảng account
 DROP TABLE IF EXISTS account;
 CREATE TABLE account (
-  account_id INT PRIMARY KEY AUTO_INCREMENT,
-  email VARCHAR(50),
-  username VARCHAR(50),
-  full_name VARCHAR(50),
-  department_id INT,
-  position_id INT,
-  created_date DATE,
-  FOREIGN KEY (department_id) REFERENCES department (department_id),
-  FOREIGN KEY (position_id) REFERENCES position (position_id)
+    account_id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(50),
+    username VARCHAR(50),
+    full_name VARCHAR(50),
+    department_id INT,
+    position_id INT,
+    created_date DATE,
+    FOREIGN KEY (department_id)
+        REFERENCES department (department_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (position_id)
+        REFERENCES position (position_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng group
@@ -37,7 +41,7 @@ CREATE TABLE `group` (
   group_name VARCHAR(50),
   creator_id INT,
   created_date DATE DEFAULT (CURRENT_DATE),
-  FOREIGN KEY (creator_id) REFERENCES account (account_id)
+  FOREIGN KEY (creator_id) REFERENCES account (account_id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng group_account
@@ -47,8 +51,8 @@ CREATE TABLE group_account (
   account_id INT,
   joined_date DATE DEFAULT (CURRENT_DATE),
   PRIMARY KEY (group_id, account_id),
-  FOREIGN KEY (group_id) REFERENCES `group` (group_id),
-  FOREIGN KEY (account_id) REFERENCES account (account_id)
+  FOREIGN KEY (group_id) REFERENCES `group` (group_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY (account_id) REFERENCES account (account_id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng type_question
@@ -74,9 +78,9 @@ CREATE TABLE question (
   type_id INT,
   creator_id INT,
   created_date DATE DEFAULT (CURRENT_DATE),
-  FOREIGN KEY (category_id) REFERENCES category_question (category_id),
-  FOREIGN KEY (type_id) REFERENCES type_question (type_id),
-  FOREIGN KEY (creator_id) REFERENCES account (account_id)
+  FOREIGN KEY (category_id) REFERENCES category_question (category_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY (type_id) REFERENCES type_question (type_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY (creator_id) REFERENCES account (account_id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng answer
@@ -86,7 +90,7 @@ CREATE TABLE answer (
   content VARCHAR(50),
   question_id INT,
   is_correct BOOLEAN,
-  FOREIGN KEY (question_id) REFERENCES question (question_id)
+  FOREIGN KEY (question_id) REFERENCES question (question_id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng exam
@@ -99,18 +103,22 @@ CREATE TABLE exam (
   duration INT,
   creator_id INT,
   created_date DATE DEFAULT (CURRENT_DATE),
-  FOREIGN KEY (category_id) REFERENCES category_question (category_id),
-  FOREIGN KEY (creator_id) REFERENCES account (account_id)
+  FOREIGN KEY (category_id) REFERENCES category_question (category_id) ON UPDATE CASCADE ON DELETE CASCADE,
+  FOREIGN KEY (creator_id) REFERENCES account (account_id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Tạo bảng exam_question
 DROP TABLE IF EXISTS exam_question;
 CREATE TABLE exam_question (
-  exam_id INT,
-  question_id INT,
-  PRIMARY KEY (exam_id, question_id),
-  FOREIGN KEY (exam_id) REFERENCES exam (exam_id),
-  FOREIGN KEY (question_id) REFERENCES question (question_id)
+    exam_id INT,
+    question_id INT,
+    PRIMARY KEY (exam_id , question_id),
+    FOREIGN KEY (exam_id)
+        REFERENCES exam (exam_id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    FOREIGN KEY (question_id)
+        REFERENCES question (question_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 -- Thêm dữ liệu cho bảng department
@@ -240,138 +248,15 @@ VALUES                      (1         , 1      ),
                             (9         , 2      ),
                             (10        , 10     );
 
--- Question 1: Viết lệnh để lấy ra danh sách nhân viên
--- và thông tin phòng ban của họ
-SELECT *
-FROM department
-INNER JOIN account USING (department_id);
 
--- Question 2: Viết lệnh để lấy ra thông tin các account
--- được tạo sau ngày 20/12/2010
-SELECT *
-FROM account
-INNER JOIN department USING (department_id)
-INNER JOIN position USING (position_id)
-WHERE created_date > "2010-12-20";
 
--- Question 3: Viết lệnh để lấy ra tất cả các developer
-SELECT *
-FROM account
-INNER JOIN position USING (position_id)
-WHERE position_name = "Dev";
 
--- Question 4: Viết lệnh để lấy ra danh sách các phòng ban có > 3 nhân viên
-SELECT department.*
-FROM account
-INNER JOIN department USING (department_id)
-GROUP BY department_id
-HAVING COUNT(account_id) > 3;
 
--- Question 5: Viết lệnh để lấy ra danh sách câu hỏi
--- được sử dụng trong đề thi nhiều nhất
-SELECT question.*
-FROM question
-LEFT JOIN exam_question USING (question_id)
-GROUP BY question_id
-ORDER BY COUNT(exam_id) DESC
-LIMIT 1;
 
--- Question 6: Thông kê mỗi category Question
--- được sử dụng trong bao nhiêu Question
-SELECT category_question.*, COUNT(question_id) AS question_count
-FROM question
-RIGHT JOIN category_question USING (category_id)
-GROUP BY category_id;
 
--- Question 7: Thông kê mỗi Question
--- được sử dụng trong bao nhiêu Exam
-SELECT question.*, COUNT(exam_id) AS exam_count
-FROM exam_question
-RIGHT JOIN question USING (question_id)
-GROUP BY question_id;
 
--- Question 8: Lấy ra Question có nhiều câu trả lời nhất
-SELECT question.*
-FROM answer
-INNER JOIN question USING (question_id)
-GROUP BY question_id
-ORDER BY COUNT(answer_id) DESC
-LIMIT 1;
 
--- Question 9: Thống kê số lượng account trong mỗi group
-SELECT `group`.*, COUNT(account_id) AS account_count
-FROM `group`
-LEFT JOIN group_account USING (group_id)
-GROUP BY group_id;
 
--- Question 10: Tìm chức vụ có ít người nhất
-SELECT position.*
-FROM position
-LEFT JOIN account USING (position_id)
-GROUP BY position_id
-ORDER BY COUNT(account_id)
-LIMIT 1;
 
--- Question 11: Thống kê mỗi phòng ban có bao nhiêu
--- dev, test, scrum master, PM
-SELECT department_name, position_name, COUNT(account_id) AS account_count
-FROM department
-CROSS JOIN position
-LEFT JOIN account USING (department_id, position_id)
-GROUP BY department_id, position_id;
 
--- Question 12: Lấy thông tin chi tiết của câu hỏi bao gồm:
--- thông tin cơ bản của question,
--- loại câu hỏi,
--- ai là người tạo ra câu hỏi,
--- câu trả lời là gì, …
-
--- Question 13: Lấy ra số lượng câu hỏi
--- của mỗi loại tự luận hay trắc nghiệm
-SELECT type_question.*, COUNT(question_id) AS question_count
-FROM type_question
-LEFT JOIN question USING (type_id)
-GROUP BY type_id;
-
--- Question 14, 15: Lấy ra group không có account nào
-SELECT `group`.*
-FROM `group`
-LEFT JOIN group_account USING (group_id)
-WHERE account_id IS NULL;
-
--- Question 16: Lấy ra question không có answer nào.
-SELECT question.*
-FROM question
-LEFT JOIN answer USING (question_id)
-WHERE answer_id IS NULL;
-
--- Question 17:
--- a) Lấy các account thuộc nhóm thứ 1
-SELECT account.*
-FROM group_account
-INNER JOIN account USING (account_id)
-WHERE group_id = 1;
-
--- b) Lấy các account thuộc nhóm thứ 2
-SELECT account.*
-FROM group_account
-INNER JOIN account USING (account_id)
-WHERE group_id = 2;
-
--- c) Ghép 2 kết quả từ câu a) và câu b)
--- sao cho không có record nào trùng nhau
-SELECT account.*
-FROM group_account
-INNER JOIN account USING (account_id)
-WHERE group_id = 1
-UNION
-SELECT account.*
-FROM group_account
-INNER JOIN account USING (account_id)
-WHERE group_id = 2;
-
--- Question 18:
--- a) Lấy các group có lớn hơn 5 thành viên
--- b) Lấy các group có nhỏ hơn 7 thành viên
--- c) Ghép 2 kết quả từ câu a) và câu b).
 
