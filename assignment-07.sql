@@ -1,6 +1,6 @@
-DROP DATABASE IF EXISTS assignment_06;
-CREATE DATABASE assignment_06;
-USE assignment_06;
+DROP DATABASE IF EXISTS assignment_07;
+CREATE DATABASE assignment_07;
+USE assignment_07;
 
 -- Tạo bảng department
 DROP TABLE IF EXISTS department;
@@ -248,292 +248,258 @@ VALUES                      (1         , 1      ),
                             (9         , 2      ),
                             (10        , 10     );
 
--- Question 1: Tạo store để người dùng nhập vào tên phòng ban
--- và in ra tất cả các account thuộc phòng ban đó.
-DROP PROCEDURE IF EXISTS sp_01;
+-- Question 1: Tạo trigger không cho phép người dùng nhập vào Group có
+-- ngày tạo trước 1 năm trước
+DROP TRIGGER IF EXISTS trigger_01;
 DELIMITER $$
-CREATE PROCEDURE sp_01 (IN in_department_name VARCHAR(50))
+CREATE TRIGGER trigger_01
+BEFORE INSERT ON `group`
+FOR EACH ROW
+BEGIN
+	IF NEW.created_date < CURRENT_DATE - INTERVAL 1 YEAR THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Không cho tạo group trước 1 năm trước.";
+    END IF;
+END $$
+DELIMITER ;
+
+-- Question 2: Tạo trigger Không cho phép người dùng thêm bất kỳ user nào
+-- vào department "Sale" nữa, khi thêm thì hiện ra thông báo
+-- "Department "Sale" cannot add more user"
+DROP TRIGGER IF EXISTS trigger_02;
+DELIMITER $$
+CREATE TRIGGER trigger_02
+BEFORE INSERT ON account
+FOR EACH ROW
+BEGIN
+	DECLARE v_sale_id INT;
+    
+    SELECT department_id INTO v_sale_id
+    FROM department
+    WHERE department_name = "Sale";
+    
+    IF NEW.department_id = v_sale_id THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Department Sale cannot add more user";
+    END IF;
+END $$
+DELIMITER ;
+
+-- Question 3: Cấu hình 1 group có nhiều nhất là 5 user
+DROP TRIGGER IF EXISTS trigger_03;
+DELIMITER $$
+CREATE TRIGGER trigger_03
+BEFORE INSERT ON group_account
+FOR EACH ROW
+BEGIN
+	DECLARE v_account_count INT;
+    
+    SELECT COUNT(account_id) INTO v_account_count
+    FROM group_account
+    WHERE group_id = NEW.group_id;
+    
+    IF v_account_count >= 5 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Mỗi group có tối đa 5 người.";
+    END IF;
+END $$
+DELIMITER ;
+
+-- Question 4: Cấu hình 1 bài thi có nhiều nhất là 10 Question
+DROP TRIGGER IF EXISTS trigger_04;
+DELIMITER $$
+CREATE TRIGGER trigger_04
+BEFORE INSERT ON exam_question
+FOR EACH ROW
+BEGIN
+	DECLARE v_question_count INT;
+    
+    SELECT COUNT(question_id) INTO v_question_count
+    FROM exam_question
+    WHERE exam_id = NEW.exam_id;
+    
+    IF v_question_count >= 10 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Mỗi đề thi có tối đa 10 câu hỏi";
+    END IF;
+END $$
+DELIMITER ;
+
+-- Question 5: Tạo trigger không cho phép người dùng xóa tài khoản
+-- có email là admin@gmail.com (đây là tài khoản admin, không cho phép user xóa),
+-- còn lại các tài khoản khác thì sẽ cho phép xóa và sẽ xóa tất cả các thông
+-- tin liên quan tới user đó
+DROP TRIGGER IF EXISTS trigger_05;
+DELIMITER $$
+CREATE TRIGGER trigger_05
+BEFORE DELETE ON account
+FOR EACH ROW
+BEGIN
+	IF OLD.email = "admin@gmail.com" THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Đây là tài khoản admin, không cho phép user xóa";
+    END IF;
+END $$
+DELIMITER ;
+
+-- Question 6: Không sử dụng cấu hình default
+-- cho field DepartmentID của
+-- table Account, hãy tạo trigger cho phép
+-- người dùng khi tạo account không điền
+-- vào departmentID thì sẽ được phân vào
+-- phòng ban "Phòng chờ"
+DROP TRIGGER IF EXISTS trigger_06;
+DELIMITER $$
+CREATE TRIGGER trigger_06
+BEFORE INSERT ON account
+FOR EACH ROW
 BEGIN
 	DECLARE v_department_id INT;
-    
-    SELECT department_id INTO v_department_id
-	FROM department
-	WHERE department_name = in_department_name;
 
-	SELECT *
-    FROM account
-    WHERE department_id = v_department_id;
+	IF NEW.department_id IS NULL THEN
+		SELECT department_id INTO v_department_id
+        FROM department
+        WHERE department_name = "Phòng chờ";
+        
+        SET NEW.department_id = v_department_id;
+    END IF;
 END $$
 DELIMITER ;
 
-CALL sp_01 ("Giám đốc");
-
--- Question 2: Tạo store để in ra số lượng account trong mỗi group.
+-- Question 7: Cấu hình 1 bài thi chỉ cho phép user
+-- tạo tối đa 4 answers cho mỗi question,
+-- trong đó có tối đa 2 đáp án đúng.
+DROP TRIGGER IF EXISTS trigger_07;
 DELIMITER $$
-CREATE PROCEDURE sp_02 ()
+CREATE TRIGGER trigger_07
+BEFORE INSERT ON answer
+FOR EACH ROW
 BEGIN
-	SELECT `group`.*, COUNT(account_id) AS account_count
-    FROM `group`
-    LEFT JOIN group_account USING (group_id)
-    GROUP BY group_id;
+	DECLARE v_answer_count INT;
+    DECLARE v_correct_answer_count INT;
+    
+    SELECT COUNT(answer_id) INTO v_answer_count
+    FROM answer
+    WHERE question_id = NEW.question_id;
+    
+    IF v_answer_count >= 4 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Mỗi câu hỏi có tối đa 4 câu trả lời";
+    END IF;
+    
+    SELECT COUNT(answer_id) INTO v_correct_answer_count
+    FROM answer
+    WHERE question_id = NEW.question_id AND is_correct = TRUE;
+    
+    IF v_correct_answer_count >= 2 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Mỗi câu hỏi có tối đa 2 câu trả lời đúng";
+    END IF;
 END $$
 DELIMITER ;
 
-CALL sp_02 ();
-
--- Question 3: Tạo store để thống kê mỗi type question
--- có bao nhiêu question được tạo trong tháng hiện tại.
+-- Question 9: Viết trigger không cho phép người dùng
+-- xóa bài thi mới tạo được 2 ngày
+DROP TRIGGER IF EXISTS trigger_09;
 DELIMITER $$
-CREATE PROCEDURE sp_03 ()
+CREATE TRIGGER trigger_09
+BEFORE DELETE ON exam
+FOR EACH ROW
 BEGIN
-	WITH c3 AS (
-		SELECT *
-		FROM question
-		WHERE MONTH(created_date) = MONTH(CURRENT_DATE)
-			AND YEAR(created_date) = YEAR(CURRENT_DATE)
-	)
-	SELECT type_question.*, COUNT(question_id) AS question_count
-	FROM type_question
-	LEFT JOIN c3 USING (type_id)
-	GROUP BY type_id;
+	IF OLD.created_date > CURRENT_DATE - INTERVAL 2 DAY THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Không được xóa bài thi mới tạo được 2 ngày";
+    END IF;
 END $$
 DELIMITER ;
 
--- Question 4: Tạo store để trả ra id của type question
--- có nhiều câu hỏi nhất.
+-- Question 10: Viết trigger chỉ cho phép người dùng
+-- chỉ được update, delete các
+-- question khi question đó chưa nằm trong exam nào
+DROP TRIGGER IF EXISTS trigger_10_update;
 DELIMITER $$
-CREATE FUNCTION fn_04 () RETURNS INT
+CREATE TRIGGER trigger_10_update
+BEFORE UPDATE ON question
+FOR EACH ROW
 BEGIN
-	DECLARE v_type_id INT;
+	DECLARE v_exam_count INT;
     
-    WITH c4 AS (
-		SELECT type_question.*, COUNT(question_id) AS question_count
-        FROM type_question
-        LEFT JOIN question USING (type_id)
-        GROUP BY type_id
-    )
-    SELECT type_id INTO v_type_id
-    FROM c4
-    WHERE question_count =
-		(SELECT MAX(question_count)
-        FROM c4);
-    
-    RETURN v_type_id;
-END $$
-DELIMITER ;
-
--- Question 5: Sử dụng store ở question 4 để tìm ra tên của type question.
-DELIMITER $$
-CREATE FUNCTION fn_05 () RETURNS ENUM("Essay", "Multiple-Choice")
-BEGIN
-	DECLARE v_type_name ENUM("Essay", "Multiple-Choice");
-    
-    SELECT type_name INTO v_type_name
-    FROM type_question
-    WHERE type_id = fn_04();
-    
-    RETURN v_type_name;
-END $$
-DELIMITER ;
-
-SELECT fn_05();
-
--- Question 6: Viết 1 store cho phép người dùng nhập vào 1 chuỗi
--- và trả về group có tên chứa chuỗi của người dùng nhập vào
--- hoặc trả về user có username chứa chuỗi của người dùng nhập vào.
--- search: Samsung
-DROP PROCEDURE sp_06;
-DELIMITER $$
-CREATE PROCEDURE sp_06 (IN in_search VARCHAR(50))
-BEGIN
-	SELECT 'group' AS type, group_name AS name
-	FROM `group`
-	WHERE group_name LIKE CONCAT("%", in_search, "%")
-    UNION
-    SELECT 'account' AS type, username AS name
-	FROM account
-	WHERE username LIKE CONCAT("%", in_search, "%");
-END $$
-DELIMITER ;
-
-CALL sp_06("g");
-
--- Question 7: Viết 1 store cho phép người dùng nhập vào thông tin fullName,
--- email và trong store sẽ tự động gán:
--- username sẽ giống email nhưng bỏ phần @..mail đi
--- positionID: sẽ có default là developer
--- departmentID: sẽ được cho vào 1 phòng chờ
--- Sau đó in ra kết quả tạo thành công
-DROP PROCEDURE IF EXISTS sp_07;
-DELIMITER $$
-CREATE PROCEDURE sp_07 (IN in_full_name VARCHAR(50), IN in_email VARCHAR(50))
-BEGIN
-    DECLARE v_username VARCHAR(50);
-    DECLARE v_position_id INT;
-    DECLARE v_department_id INT;
-
-    -- username sẽ giống email nhưng bỏ phần @..mail đi
-    SELECT SUBSTRING_INDEX(in_email, "@", 1) INTO v_username;
-    
-    -- position_id sẽ có default là developer
-    SELECT position_id INTO v_position_id
-    FROM position
-    WHERE position_name = "Dev";
-    
-    -- department_id sẽ được cho vào 1 phòng chờ
-    SELECT department_id INTO v_department_id
-    FROM department
-    WHERE department_name = "Phòng chờ";
-    
-    -- Tạo account
-    INSERT INTO account (email   , username  , full_name   , department_id  , position_id  )
-    VALUES              (in_email, v_username, in_full_name, v_department_id, v_position_id);
-    
-    -- In ra kết quả
-    SELECT *
-    FROM account
-    WHERE username = v_username;
-END $$
-DELIMITER ;
-
--- Question 8: Viết 1 store cho phép người dùng nhập vào Essay hoặc Multiple-Choice
--- để thống kê câu hỏi essay hoặc multiple-choice nào có content dài nhất
-DROP PROCEDURE IF EXISTS sp_08;
-DELIMITER $$
-CREATE PROCEDURE sp_08 (IN in_type_name ENUM("Essay", "Multiple-Choice"))
-BEGIN
-    WITH c1 AS (
-        SELECT *, CHAR_LENGTH(content) AS content_length
-        FROM question
-        WHERE type_id =
-            (SELECT type_id
-            FROM type_question
-            WHERE type_name = in_type_name)
-    )
-    SELECT *
-    FROM c1
-    WHERE content_length =
-        (SELECT MAX(content_length)
-        FROM c1);
-END $$
-DELIMITER ;
-
--- Question 9: Viết 1 store cho phép người dùng xóa exam dựa vào ID
-DROP PROCEDURE IF EXISTS sp_09;
-DELIMITER $$
-CREATE PROCEDURE sp_09 (IN in_exam_id INT)
-BEGIN
-	DELETE FROM exam
-    WHERE exam_id = in_exam_id;
-END $$
-DELIMITER ;
-
--- Question 10: Tìm ra các exam được tạo từ 3 năm trước
--- và xóa các exam đó đi (sử dụng store ở câu 9 để xóa)
--- Sau đó in số lượng record đã remove từ các table liên quan
--- trong khi removing
-DROP PROCEDURE IF EXISTS sp_10;
-DELIMITER $$
-CREATE PROCEDURE sp_10 ()
-BEGIN
-	DECLARE v_removed_exam_question INT;
-    DECLARE v_removed_exam INT;
-
-	SELECT COUNT(*) INTO v_removed_exam
-    FROM exam
-    WHERE created_date < CURRENT_DATE - INTERVAL 3 YEAR;
-    
-    SELECT COUNT(*) INTO v_removed_exam_question
+    SELECT COUNT(exam_id) INTO v_exam_count
     FROM exam_question
-    INNER JOIN exam USING (exam_id)
-    WHERE created_date < CURRENT_DATE - INTERVAL 3 YEAR;
+    WHERE question_id = OLD.question_id;
     
-    DELETE FROM exam
-    WHERE created_date < CURRENT_DATE - INTERVAL 3 YEAR;
-    
-    SELECT
-		CONCAT(
-			"Số bản ghi bị xóa là: ",
-            v_removed_exam + v_removed_exam_question
-		) AS message;
+    IF v_exam_count != 0 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Có đề thi nào đó đang sử dụng câu hỏi này";
+    END IF;
 END $$
 DELIMITER ;
 
--- Question 11: Viết store cho phép người dùng xóa phòng ban
--- bằng cách người dùng nhập vào tên phòng ban
--- và các account thuộc phòng ban đó sẽ được
--- chuyển về phòng ban default là phòng ban chờ việc
-DROP PROCEDURE IF EXISTS sp_11;
+DROP TRIGGER IF EXISTS trigger_10_delete;
 DELIMITER $$
-CREATE PROCEDURE sp_11 (IN in_department_name VARCHAR(50))
+CREATE TRIGGER trigger_10_delete
+BEFORE DELETE ON question
+FOR EACH ROW
 BEGIN
-	DECLARE v_from_department_id INT;
-    DECLARE v_to_department_id INT;
+	DECLARE v_exam_count INT;
     
-    SELECT department_id INTO v_from_department_id
-    FROM department
-    WHERE department_name = in_department_name;
+    SELECT COUNT(exam_id) INTO v_exam_count
+    FROM exam_question
+    WHERE question_id = OLD.question_id;
     
-    SELECT department_id INTO v_to_department_id
-    FROM department
-    WHERE department_name = "Phòng chờ";
-    
-    UPDATE account
-    SET department_id = v_to_department_id
-    WHERE department_id = v_from_department_id;
-    
-    DELETE FROM department
-    WHERE department_id = v_from_department_id;
+    IF v_exam_count != 0 THEN
+		SIGNAL SQLSTATE "12345"
+        SET MESSAGE_TEXT = "Có đề thi nào đó đang sử dụng câu hỏi này";
+    END IF;
 END $$
 DELIMITER ;
 
--- Question 12: Viết store để in ra mỗi tháng
--- có bao nhiêu câu hỏi được tạo trong năm nay
-WITH RECURSIVE c1 (month) AS (
-	SELECT 1
-	UNION
-	SELECT month + 1 FROM c1 WHERE month < 12
-), c2 AS (
-	SELECT *, MONTH(created_date) AS month
-    FROM question
-    WHERE YEAR(created_date) = 2020
+-- Question 12: Lấy ra thông tin exam trong đó:
+-- Duration <= 30 thì sẽ đổi thành giá trị "Short time";
+-- 30 < Duration <= 60 thì sẽ đổi thành giá trị "Medium time"
+-- Duration > 60 thì sẽ đổi thành giá trị "Long time"
+SELECT *,
+	CASE
+		WHEN duration <= 30 THEN "Short time"
+        WHEN duration <= 60 THEN "Medium time"
+        ELSE "Long time"
+    END AS duration_type
+FROM exam;
+
+-- Question 13: Thống kê số account trong mỗi group
+-- và in ra thêm 1 column nữa có tên
+-- là the_number_user_amount và mang giá trị được quy định như sau:
+-- Nếu số lượng user trong group <= 5 thì sẽ có giá trị là few
+-- Nếu số lượng user trong group <= 20 và > 5 thì sẽ có giá trị là normal
+-- Nếu số lượng user trong group > 20 thì sẽ có giá trị là higher
+WITH c13 AS (
+	SELECT `group`.*, COUNT(account_id) AS account_count
+	FROM `group`
+	LEFT JOIN group_account USING (group_id)
+	GROUP BY group_id
 )
-SELECT month, COUNT(question_id) AS question_count
-FROM c1
-LEFT JOIN c2 USING (month)
-GROUP BY month;
+SELECT *,
+	CASE
+		WHEN account_count <= 5 THEN "few"
+		WHEN account_count <= 20 THEN "normal"
+		ELSE "higher"
+	END AS the_number_user_amount
+FROM c13;
 
--- Question 13: Viết store để in ra mỗi tháng có bao nhiêu câu hỏi được tạo
--- trong 6 tháng gần đây nhất
--- (Nếu tháng nào không có thì sẽ in ra là "không có câu hỏi nào trong tháng")
-WITH RECURSIVE c1 (n) AS (
-	SELECT CURRENT_DATE - INTERVAL 1 MONTH
-    UNION
-    SELECT n - INTERVAL 1 MONTH FROM c1 WHERE n > CURRENT_DATE - INTERVAL 6 MONTH
-), c2 AS (
-	SELECT YEAR(n) AS year, MONTH(n) AS month
-    FROM c1
-), c3 AS (
-	SELECT *, YEAR(created_date) AS year, MONTH(created_date) AS month
-	FROM question
+-- Question 14: Thống kê số mỗi phòng ban có bao nhiêu user,
+-- nếu phòng ban nào không có user
+-- thì sẽ thay đổi giá trị 0 thành "Không có User"
+WITH c14 AS (
+	SELECT department.*, COUNT(account_id) AS account_count
+    FROM department
+    LEFT JOIN account USING (department_id)
+    GROUP BY department_id
 )
-SELECT year, month,
-	IF(
-		COUNT(question_id) = 0,
-		"không có câu hỏi nào trong tháng",
-		COUNT(question_id)
-    ) AS question_count
-FROM c2
-LEFT JOIN c3 USING (year, month)
-GROUP BY year, month;
-
-
-
-
-
-
-
-
-
+SELECT department_id, department_name,
+	CASE
+		WHEN account_count = 0 THEN "Không có user"
+        ELSE account_count
+    END AS account_number
+FROM c14;
 
 
